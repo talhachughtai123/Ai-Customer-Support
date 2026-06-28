@@ -28,4 +28,12 @@ class MessageRepository implements MessageRepositoryInterface
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
     }
+
+    public function markAgentMessagesRead(Conversation $conversation): int
+    {
+        return $conversation->messages()
+            ->where('sender_type', MessageSenderType::Agent->value)
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+    }
 }

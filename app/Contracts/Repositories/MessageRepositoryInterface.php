@@ -20,4 +20,12 @@ interface MessageRepositoryInterface
      * @return int number of messages updated
      */
     public function markCustomerMessagesRead(Conversation $conversation): int;
+
+    /**
+     * Mark all unread agent messages in the conversation as read (the customer
+     * read them in the widget).
+     *
+     * @return int number of messages updated
+     */
+    public function markAgentMessagesRead(Conversation $conversation): int;
 }

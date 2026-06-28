@@ -7,7 +7,9 @@ use App\Contracts\Repositories\MessageRepositoryInterface;
 use App\Enums\ConversationStatus;
 use App\Events\ConversationUpdated;
 use App\Events\MessagesRead;
+use App\Events\ParticipantTyping;
 use App\Models\Conversation;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -39,7 +41,7 @@ class ConversationController extends Controller
 
         // Opening a conversation clears its unread customer messages.
         if ($this->messages->markCustomerMessagesRead($conversation) > 0) {
-            event(new MessagesRead($conversation->id, 'agent'));
+            event(new MessagesRead($conversation->id, 'agent', $conversation->token));
         }
 
         $conversation = $this->conversations->findWithMessages($conversation->id);
@@ -67,6 +69,23 @@ class ConversationController extends Controller
         event(new ConversationUpdated($conversation->load('assignedAgent')));
 
         return back();
+    }
+
+    /**
+     * Broadcast that this agent is typing, so the customer widget can show it.
+     */
+    public function typing(Request $request, Conversation $conversation): JsonResponse
+    {
+        $this->authorize('reply', $conversation);
+
+        event(new ParticipantTyping(
+            $conversation->id,
+            $conversation->token,
+            $request->user()->name,
+            'agent',
+        ));
+
+        return response()->json(status: 202);
     }
 
     /**

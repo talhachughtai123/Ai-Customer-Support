@@ -9,18 +9,19 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class MessagesRead implements ShouldBroadcastNow
+class ParticipantTyping implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     /**
-     * @param  string  $reader  which side read the messages: "agent" or "customer"
-     * @param  string|null  $token  the conversation token, so the customer widget channel is notified too
+     * @param  string  $side  who is typing: "agent" or "customer". Each client
+     *                        shows the indicator only for the opposite side.
      */
     public function __construct(
         public int $conversationId,
-        public string $reader,
-        public ?string $token = null,
+        public string $token,
+        public string $name,
+        public string $side,
     ) {}
 
     /**
@@ -28,18 +29,15 @@ class MessagesRead implements ShouldBroadcastNow
      */
     public function broadcastOn(): array
     {
-        $channels = [new PrivateChannel('conversation.'.$this->conversationId)];
-
-        if ($this->token !== null) {
-            $channels[] = new Channel('widget.'.$this->token);
-        }
-
-        return $channels;
+        return [
+            new PrivateChannel('conversation.'.$this->conversationId),
+            new Channel('widget.'.$this->token),
+        ];
     }
 
     public function broadcastAs(): string
     {
-        return 'messages.read';
+        return 'participant.typing';
     }
 
     /**
@@ -48,8 +46,8 @@ class MessagesRead implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'conversation_id' => $this->conversationId,
-            'reader' => $this->reader,
+            'name' => $this->name,
+            'side' => $this->side,
         ];
     }
 }
