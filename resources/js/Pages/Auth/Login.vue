@@ -96,5 +96,24 @@ const submit = () => {
                 </PrimaryButton>
             </div>
         </form>
+
+        <div class="mt-6 flex items-center gap-3">
+            <span class="h-px flex-1 bg-gray-200" />
+            <span class="text-xs uppercase tracking-wide text-gray-400">or</span>
+            <span class="h-px flex-1 bg-gray-200" />
+        </div>
+
+        <a
+            :href="route('auth.google.redirect')"
+            class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+        >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    fill="#EA4335"
+                    d="M12 10.2v3.9h5.5c-.24 1.4-1.66 4.1-5.5 4.1-3.3 0-6-2.74-6-6.1S8.7 6 12 6c1.88 0 3.14.8 3.86 1.48l2.63-2.54C16.9 3.4 14.66 2.4 12 2.4 6.86 2.4 2.7 6.56 2.7 11.7s4.16 9.3 9.3 9.3c5.37 0 8.92-3.78 8.92-9.1 0-.61-.07-1.08-.15-1.55H12z"
+                />
+            </svg>
+            Continue with Google
+        </a>
     </GuestLayout>
 </template>

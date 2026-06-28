@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Contracts\Repositories\UserRepositoryInterface;
+use App\Enums\Role;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
@@ -16,6 +18,10 @@ use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
+    public function __construct(
+        private readonly UserRepositoryInterface $users,
+    ) {}
+
     /**
      * Display the registration view.
      */
@@ -37,11 +43,16 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+        // First account to register bootstraps the Owner; everyone else is a Viewer.
+        $role = $this->users->isEmpty() ? Role::Owner : Role::Viewer;
+
+        $user = $this->users->create([
+            'name' => $request->string('name')->value(),
+            'email' => $request->string('email')->lower()->value(),
+            'password' => Hash::make($request->string('password')->value()),
         ]);
+
+        $user->assignRole($role->value);
 
         event(new Registered($user));
 
