@@ -2,12 +2,21 @@
 
 namespace Tests\Feature\Auth;
 
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Registration assigns the Owner/Viewer role, so the roles must exist.
+        $this->seed(RoleSeeder::class);
+    }
 
     public function test_registration_screen_can_be_rendered(): void
     {
