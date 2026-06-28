@@ -1,7 +1,13 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, useForm, router, usePage } from '@inertiajs/vue3';
-import { computed, ref, watch, nextTick } from 'vue';
+import {
+    computed,
+    ref,
+    watch,
+    nextTick,
+    onBeforeUnmount,
+} from 'vue';
 
 const props = defineProps({
     conversations: { type: Object, required: true },
@@ -82,15 +88,105 @@ function initials(name) {
         .toUpperCase();
 }
 
-// --- Reply composer ---
-const replyForm = useForm({ body: '' });
+// --- Live state (driven by props + Reverb broadcasts) ---
+const liveMessages = ref(props.activeConversation?.messages ?? []);
+const activeStatus = ref(props.activeConversation?.status ?? null);
+const typingName = ref(null);
 const messagesEnd = ref(null);
+
+let currentChannelId = null;
+let typingTimer = null;
+let lastWhisperAt = 0;
 
 function scrollToBottom() {
     nextTick(() => messagesEnd.value?.scrollIntoView({ behavior: 'smooth' }));
 }
 
-watch(() => props.activeConversation?.messages?.length, scrollToBottom);
+function leaveCurrentChannel() {
+    if (currentChannelId && window.Echo) {
+        window.Echo.leave('conversation.' + currentChannelId);
+    }
+    currentChannelId = null;
+}
+
+function subscribe(id) {
+    if (!window.Echo || !id) return;
+
+    currentChannelId = id;
+    window.Echo.private('conversation.' + id)
+        .listen('.message.sent', (e) => {
+            if (!liveMessages.value.some((m) => m.id === e.message.id)) {
+                liveMessages.value.push(e.message);
+                scrollToBottom();
+            }
+        })
+        .listen('.conversation.updated', (e) => {
+            activeStatus.value = e.status;
+        })
+        .listen('.messages.read', (e) => {
+            // The customer read our messages — flip agent bubbles to "Seen".
+            if (e.reader === 'customer') {
+                liveMessages.value.forEach((m) => {
+                    if (m.sender_type === 'agent' && !m.read_at) {
+                        m.read_at = new Date().toISOString();
+                    }
+                });
+            }
+        })
+        .listenForWhisper('typing', (e) => {
+            typingName.value = e.name;
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => (typingName.value = null), 2500);
+        });
+}
+
+// Keep the window in sync as Inertia swaps the active conversation prop.
+watch(
+    () => props.activeConversation,
+    (conv, prev) => {
+        if (!conv) {
+            leaveCurrentChannel();
+            liveMessages.value = [];
+            activeStatus.value = null;
+            return;
+        }
+
+        if (conv.id !== prev?.id) {
+            if (prev?.id) leaveCurrentChannel();
+            liveMessages.value = [...conv.messages];
+            typingName.value = null;
+            subscribe(conv.id);
+        } else {
+            // Same conversation reloaded — merge any messages we don't have yet.
+            const known = new Set(liveMessages.value.map((m) => m.id));
+            conv.messages.forEach((m) => {
+                if (!known.has(m.id)) liveMessages.value.push(m);
+            });
+        }
+
+        activeStatus.value = conv.status;
+        scrollToBottom();
+    },
+    { immediate: true },
+);
+
+onBeforeUnmount(() => {
+    leaveCurrentChannel();
+    clearTimeout(typingTimer);
+});
+
+function notifyTyping() {
+    const now = Date.now();
+    if (!currentChannelId || !window.Echo || now - lastWhisperAt < 1000) return;
+
+    lastWhisperAt = now;
+    window.Echo.private('conversation.' + currentChannelId).whisper('typing', {
+        name: page.props.auth?.user?.name,
+    });
+}
+
+// --- Reply composer ---
+const replyForm = useForm({ body: '' });
 
 function sendReply() {
     if (!props.activeConversation || !replyForm.body.trim()) return;
@@ -233,7 +329,7 @@ function changeStatus(event) {
                                     </p>
                                 </div>
                                 <select
-                                    :value="activeConversation.status"
+                                    :value="activeStatus"
                                     @change="changeStatus"
                                     :disabled="isViewer"
                                     class="rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:opacity-50"
@@ -250,7 +346,7 @@ function changeStatus(event) {
 
                             <div class="flex-1 space-y-3 overflow-y-auto bg-gray-50 px-5 py-4">
                                 <div
-                                    v-for="m in activeConversation.messages"
+                                    v-for="m in liveMessages"
                                     :key="m.id"
                                     class="flex"
                                     :class="
@@ -290,10 +386,20 @@ function changeStatus(event) {
                                             "
                                         >
                                             {{ formatTime(m.created_at) }}
+                                            <span v-if="m.sender_type === 'agent'">
+                                                · {{ m.read_at ? 'Read' : 'Sent' }}
+                                            </span>
                                         </p>
                                     </div>
                                 </div>
                                 <div ref="messagesEnd"></div>
+                            </div>
+
+                            <div
+                                v-if="typingName"
+                                class="px-5 pb-1 text-xs italic text-gray-400"
+                            >
+                                {{ typingName }} is typing…
                             </div>
 
                             <form
@@ -311,6 +417,7 @@ function changeStatus(event) {
                                         v-model="replyForm.body"
                                         rows="2"
                                         placeholder="Type your reply…"
+                                        @input="notifyTyping"
                                         @keydown.enter.exact.prevent="sendReply"
                                         class="flex-1 resize-none rounded-md border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     ></textarea>

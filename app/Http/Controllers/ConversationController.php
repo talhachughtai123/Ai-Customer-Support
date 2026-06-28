@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Contracts\Repositories\ConversationRepositoryInterface;
 use App\Contracts\Repositories\MessageRepositoryInterface;
 use App\Enums\ConversationStatus;
+use App\Events\ConversationUpdated;
+use App\Events\MessagesRead;
 use App\Models\Conversation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -36,7 +38,9 @@ class ConversationController extends Controller
         $this->authorize('view', $conversation);
 
         // Opening a conversation clears its unread customer messages.
-        $this->messages->markCustomerMessagesRead($conversation);
+        if ($this->messages->markCustomerMessagesRead($conversation) > 0) {
+            event(new MessagesRead($conversation->id, 'agent'));
+        }
 
         $conversation = $this->conversations->findWithMessages($conversation->id);
 
@@ -58,7 +62,9 @@ class ConversationController extends Controller
             'assigned_to' => ['sometimes', 'nullable', 'integer', 'exists:users,id'],
         ]);
 
-        $this->conversations->update($conversation, $validated);
+        $conversation = $this->conversations->update($conversation, $validated);
+
+        event(new ConversationUpdated($conversation->load('assignedAgent')));
 
         return back();
     }
