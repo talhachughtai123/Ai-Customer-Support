@@ -137,6 +137,14 @@ function subscribe(id) {
             typingName.value = e.name;
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => (typingName.value = null), 2500);
+        })
+        .listen('.participant.typing', (e) => {
+            // The customer (in the website widget) is typing.
+            if (e.side === 'customer') {
+                typingName.value = e.name;
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => (typingName.value = null), 2500);
+            }
         });
 }
 
@@ -180,9 +188,14 @@ function notifyTyping() {
     if (!currentChannelId || !window.Echo || now - lastWhisperAt < 1000) return;
 
     lastWhisperAt = now;
+    // Whisper reaches other agents on this conversation…
     window.Echo.private('conversation.' + currentChannelId).whisper('typing', {
         name: page.props.auth?.user?.name,
     });
+    // …and a server broadcast reaches the customer's public widget channel.
+    window.axios
+        .post(route('conversations.typing', currentChannelId))
+        .catch(() => {});
 }
 
 // --- Reply composer ---
