@@ -25,6 +25,9 @@ class WidgetTest extends TestCase
         parent::setUp();
 
         $this->withoutVite();
+        // These tests cover the widget transport, not AI — keep auto-reply off
+        // so posting a message doesn't fire the AI job as a side effect.
+        config(['ai.auto_reply' => false]);
     }
 
     public function test_the_widget_page_is_publicly_accessible(): void

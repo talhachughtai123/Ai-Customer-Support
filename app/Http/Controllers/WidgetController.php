@@ -10,6 +10,7 @@ use App\Enums\MessageType;
 use App\Events\MessageSent;
 use App\Events\MessagesRead;
 use App\Events\ParticipantTyping;
+use App\Jobs\GenerateAiReply;
 use App\Models\Conversation;
 use App\Models\Customer;
 use App\Models\Message;
@@ -84,7 +85,6 @@ class WidgetController extends Controller
     public function storeMessage(Request $request, string $token): JsonResponse
     {
         $conversation = $this->resolveByToken($token);
-
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:5000'],
         ]);
@@ -99,9 +99,15 @@ class WidgetController extends Controller
         // Re-opening a closed thread the customer keeps writing in.
         if ($conversation->status === ConversationStatus::Closed) {
             $this->conversations->update($conversation, ['status' => ConversationStatus::Open->value]);
+            $conversation->setAttribute('status', ConversationStatus::Open);
         }
 
         event(new MessageSent($message->setRelation('conversation', $conversation)));
+
+        // Let the AI answer while no human agent is handling the conversation.
+        if (config('ai.auto_reply') && $conversation->assigned_to === null) {
+            GenerateAiReply::dispatch($conversation->id);
+        }
 
         return response()->json(['message' => $this->presentMessage($message)], 201);
     }

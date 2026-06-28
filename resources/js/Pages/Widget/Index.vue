@@ -123,7 +123,7 @@ function subscribe() {
             }
         })
         .listen('.participant.typing', (e) => {
-            if (e.side === 'agent') {
+            if (e.side === 'agent' || e.side === 'ai') {
                 agentTyping.value = true;
                 clearTimeout(agentTypingTimer);
                 agentTypingTimer = setTimeout(
@@ -301,10 +301,10 @@ onBeforeUnmount(() => {
                                     "
                                 >
                                     <p
-                                        v-if="m.sender_type === 'agent' && m.sender_name"
+                                        v-if="m.sender_type === 'ai' || (m.sender_type === 'agent' && m.sender_name)"
                                         class="mb-0.5 text-[10px] font-medium text-indigo-500"
                                     >
-                                        {{ m.sender_name }}
+                                        {{ m.sender_type === 'ai' ? 'Assistant 🤖' : m.sender_name }}
                                     </p>
                                     <p class="whitespace-pre-wrap">{{ m.body }}</p>
                                     <p
